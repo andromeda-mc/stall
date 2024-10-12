@@ -6,6 +6,7 @@ from SimpleWebSocketServer import WebSocket, SimpleWebSocketServer
 from queuemgr import QueueManager
 from servermgr import ServerManager
 from logger import Logger
+import software_lib
 
 d = json.dumps
 
@@ -15,6 +16,8 @@ class WebSocketHandler(WebSocket):
         global_logger.log(f"{self.address[0]} CONNECTED")
 
     def handleClose(self):
+        if self in authed_clients:
+            authed_clients.remove(self)
         global_logger.log(f"{self.address[0]} DISCONNECTED")
 
     def handleMessage(self):
@@ -103,6 +106,44 @@ class WebSocketHandler(WebSocket):
                         )
                     )
 
+                case "getsoftwaredata":
+                    rt = {"data": "softwareinfo", "software": json_data["software"]}
+                    match json_data["software"]:
+                        case "Vanilla":
+                            rt["mc_versions"] = vanilla_versions.mc_versions()
+                        case "Paper":
+                            rt["mc_versions"] = paper_versions.mc_versions()
+                        case "Fabric":
+                            rt["mc_versions"] = fabric_versions.mc_versions()
+                        case "Forge":
+                            rt["mc_versions"] = forge_versions.mc_versions()
+                        case _:
+                            rt = {"data": "exception", "msg": "invalid server software"}
+                    return self.sendMessage(d(rt))
+
+                case "getbuilddata":
+                    rt = {
+                        "data": "buildinfo",
+                        "software": json_data["software"],
+                        "mc_version": json_data["mc_version"],
+                    }
+                    match json_data["software"]:
+                        case "Paper":
+                            pbd = software_lib.PaperBuildData(json_data["mc_version"])
+                            rt["builds"] = pbd.builds()
+                        case "Fabric":
+                            rt["builds"] = fabric_versions.fabric_versions()
+                        case "Forge":
+                            rt["builds"] = forge_versions.forge_versions(
+                                json_data["mc_version"]
+                            )
+                        case _:
+                            rt = {
+                                "data": "exception",
+                                "msg": "invalid or unsupported server software",
+                            }
+                    return self.sendMessage(d(rt))
+
                 case _:
                     return self.sendMessage(
                         '{"data": "exception", "msg": "invalid command"}'
@@ -124,6 +165,10 @@ global_logger.log("Welcome to Andromeda-Stall!")
 queue = QueueManager()
 servers = ServerManager(authed_clients)
 logging_websockets = servers.logging_websockets
+vanilla_versions = software_lib.VanillaData()
+paper_versions = software_lib.PaperData()
+fabric_versions = software_lib.FabricData()
+forge_versions = software_lib.ForgeData()
 
 with open("/var/andromeda/authhash", "r") as f:
     authhash = f.read()
