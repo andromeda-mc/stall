@@ -19,8 +19,8 @@ class ConsoleWatcher:
                 try:
                     output = self.process.read(1024)
                     if output:
-                        self.on_output_change(output)
                         self.console_history += output
+                        self.on_output_change(output)
                 except EOFError:
                     self.watching = False
                     self.on_output_change("*** process stopped ***")

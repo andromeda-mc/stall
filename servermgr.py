@@ -21,9 +21,14 @@ class ServerManager(dict):
     Manages the Minecraft Servers and starts the server
     """
 
-    def __init__(self, instance_folder: str = "/var/andromeda/instances/") -> None:
+    def __init__(
+        self,
+        authed_websockets: list,
+        instance_folder: str = "/var/andromeda/instances/",
+    ) -> None:
         self.instance_folder = instance_folder
         self.logging_websockets = {}
+        self.authed_websockets = authed_websockets
 
     def create_server(
         self, name: str, software: str, download_url: str, java_bin: str, settings: dict
@@ -84,6 +89,18 @@ class ServerManager(dict):
             return json.load(f)
 
     def handle_output(self, server_name: str, output: str) -> None:
+        if output == "*** process stopped ***":
+            del self[server_name]
+        for client in self.authed_websockets:
+            client.sendMessage(
+                json.dumps(
+                    {
+                        "data": "serverstate",
+                        "server": server_name,
+                        "state": self.server_state(server_name),
+                    }
+                )
+            )
         if server_name in self.logging_websockets:
             for client in self.logging_websockets[server_name]:
                 client.sendMessage(
@@ -95,10 +112,8 @@ class ServerManager(dict):
                         }
                     )
                 )
-        if output == "*** process stopped ***":
-            del self[server_name]
 
-    def start_server(self, name: str):
+    def start_server(self, name: str) -> None:
         if name in self:
             return
         self[name] = vconsole.ConsoleWatcher(
@@ -108,3 +123,19 @@ class ServerManager(dict):
         )
         if name not in self.logging_websockets:
             self.logging_websockets[name] = []
+
+    def server_state(self, server_name: str) -> str:
+        if server_name not in self:
+            return "stopped"
+        elif "Stopping server" in self[server_name].console_history:
+            return "stopping"
+        elif "Time elapsed:" in self[server_name].console_history:
+            return "running"
+        else:
+            return "starting"
+
+    def server_states(self) -> dict:
+        rturn = {}
+        for server in self.list_servers().keys():
+            rturn[server] = self.server_state(server)
+        return rturn

@@ -7,6 +7,8 @@ from queuemgr import QueueManager
 from servermgr import ServerManager
 from logger import Logger
 
+d = json.dumps
+
 
 class WebSocketHandler(WebSocket):
     def handleConnected(self):
@@ -45,7 +47,7 @@ class WebSocketHandler(WebSocket):
                         )
                     logging_websockets[json_data["server_name"]].append(self)
                     return self.sendMessage(
-                        json.dumps(
+                        d(
                             {
                                 "data": "log_history",
                                 "log": servers[
@@ -72,6 +74,35 @@ class WebSocketHandler(WebSocket):
                         )
                     )
 
+                case "stopserver":
+                    if servers.server_state(json_data["server_name"]) != "running":
+                        return self.sendMessage(
+                            '{"data": "exception", "msg": "server not running"}'
+                        )
+                    servers[json_data["server_name"]].write("stop\n")
+
+                case "listservers":
+                    return self.sendMessage(
+                        d(
+                            {
+                                "data": "serverlist",
+                                "servers": servers.list_servers(),
+                                "states": servers.server_states(),
+                            }
+                        )
+                    )
+
+                case "getstate":
+                    return self.sendMessage(
+                        d(
+                            {
+                                "data": "serverstate",
+                                "server": json_data["server_name"],
+                                "state": servers.server_state(json_data["server_name"]),
+                            }
+                        )
+                    )
+
                 case _:
                     return self.sendMessage(
                         '{"data": "exception", "msg": "invalid command"}'
@@ -91,7 +122,7 @@ else:
 global_logger.log("Welcome to Andromeda-Stall!")
 
 queue = QueueManager()
-servers = ServerManager()
+servers = ServerManager(authed_clients)
 logging_websockets = servers.logging_websockets
 
 with open("/var/andromeda/authhash", "r") as f:
