@@ -28,6 +28,7 @@ class ServerManager(dict):
     ) -> None:
         self.instance_folder = instance_folder
         self.logging_websockets = {}
+        self._server_states = {}
         self.authed_websockets = authed_websockets
 
     def create_server(
@@ -78,6 +79,17 @@ class ServerManager(dict):
         with open(install_dir + "settings.andromeda.json", "w") as f:
             json.dump(instance_settings, f)
 
+        for client in self.authed_websockets:
+            client.sendMessage(
+                json.dumps(
+                    {
+                        "data": "serverlist",
+                        "servers": self.list_servers(),
+                        "states": self.server_states(),
+                    }
+                )
+            )
+
     def list_servers(self) -> dict:
         servers = {}
         for dirname in os.listdir(self.instance_folder):
@@ -91,16 +103,25 @@ class ServerManager(dict):
     def handle_output(self, server_name: str, output: str) -> None:
         if output == "*** process stopped ***":
             del self[server_name]
+
+        if server_name not in self:
+            self._server_states[server_name] = "stopped"
+        elif "Stopping server" in output:
+            self._server_states[server_name] = "stopping"
+        elif "Time elapsed:" in output:
+            self._server_states[server_name] = "running"
+
         for client in self.authed_websockets:
             client.sendMessage(
                 json.dumps(
                     {
                         "data": "serverstate",
                         "server": server_name,
-                        "state": self.server_state(server_name),
+                        "state": self.server_states()[server_name],
                     }
                 )
             )
+
         if server_name in self.logging_websockets:
             for client in self.logging_websockets[server_name]:
                 client.sendMessage(
@@ -116,6 +137,7 @@ class ServerManager(dict):
     def start_server(self, name: str) -> None:
         if name in self:
             return
+        self._server_states[name] = "starting"
         self[name] = vconsole.ConsoleWatcher(
             [self.instance_folder + name + "/run.sh"],
             lambda output: self.handle_output(name, output),
@@ -124,18 +146,8 @@ class ServerManager(dict):
         if name not in self.logging_websockets:
             self.logging_websockets[name] = []
 
-    def server_state(self, server_name: str) -> str:
-        if server_name not in self:
-            return "stopped"
-        elif "Stopping server" in self[server_name].console_history:
-            return "stopping"
-        elif "Time elapsed:" in self[server_name].console_history:
-            return "running"
-        else:
-            return "starting"
-
     def server_states(self) -> dict:
-        rturn = {}
         for server in self.list_servers().keys():
-            rturn[server] = self.server_state(server)
-        return rturn
+            if server not in self:
+                self._server_states[server] = "stopped"
+        return self._server_states
