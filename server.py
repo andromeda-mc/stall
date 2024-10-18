@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import shutil
 import sys
 import os
 from SimpleWebSocketServer import WebSocket, SimpleWebSocketServer
@@ -9,6 +10,68 @@ from logger import Logger
 import software_lib
 
 d = json.dumps
+
+
+def install_server(mcversion, software, softwareversion, server_name, client):
+    match software:
+        case "Paper":
+            pbd = software_lib.PaperBuildData(mcversion)
+            url = pbd.download_url(softwareversion)
+        case "Forge":
+            url = forge_versions.download_url(mcversion, softwareversion)
+        case "Fabric":
+            url = fabric_versions.download_url(mcversion, softwareversion)
+        case "Vanilla":
+            url = vanilla_versions.download_url(mcversion)
+        case _:
+            return client.sendMessage(
+                '{"data": "exception", "msg": "cs: invalid server software"}'
+            )
+
+    java_versions = software_lib.get_java_versions()
+    recommended_ver = software_lib.recommended_java_ver(mcversion)
+
+    if recommended_ver not in java_versions:
+        return client.sendMessage(
+            d(
+                {
+                    "data": "exception",
+                    "msg": "cs: java not found",
+                    "java_ver": recommended_ver,
+                }
+            )
+        )
+
+    try:
+        servers.create_server(
+            server_name,
+            software,
+            url,
+            java_versions[recommended_ver][0],
+            {
+                "java_ver": java_versions[recommended_ver][1],
+                "software_version": softwareversion,
+                "mc_version": mcversion,
+                "autostart": False,
+            },
+            authed_clients,
+        )
+    except Exception as e:
+        return client.sendMessage(d({"data": "exception", "msg": f"cs[passed]: {e}"}))
+
+
+def delete_server(name, client):
+    shutil.rmtree(servers.instance_folder + name)
+    client.sendMessage(
+        d(
+            {
+                "data": "serverlist",
+                "servers": servers.list_servers(),
+                "states": servers.server_states(),
+                "queue": queue.dump(),
+            }
+        )
+    )
 
 
 class WebSocketHandler(WebSocket):
@@ -73,7 +136,9 @@ class WebSocketHandler(WebSocket):
                     queue.append(
                         (
                             f"Starting {json_data["server_name"]}...",
-                            lambda: servers.start_server(json_data["server_name"]),
+                            lambda: servers.start_server(
+                                json_data["server_name"], authed_clients
+                            ),
                         )
                     )
 
@@ -91,6 +156,7 @@ class WebSocketHandler(WebSocket):
                                 "data": "serverlist",
                                 "servers": servers.list_servers(),
                                 "states": servers.server_states(),
+                                "queue": queue.dump(),
                             }
                         )
                     )
@@ -146,12 +212,49 @@ class WebSocketHandler(WebSocket):
                             }
                     return self.sendMessage(d(rt))
 
+                case "installserver":
+                    mcversion = json_data["mcversion"]
+                    software = json_data["software"]
+                    if software == "Vanilla":
+                        softwareversion = ""
+                    else:
+                        softwareversion = json_data["softwareversion"]
+                    name = json_data["name"]
+
+                    queue.append(
+                        (
+                            "Installing server: " + name,
+                            lambda: install_server(
+                                mcversion, software, softwareversion, name, self
+                            ),
+                        )
+                    )
+
+                case "deleteserver":
+                    name = json_data["name"]
+                    if servers.server_states()[name] != "stopped":
+                        return self.sendMessage(
+                            '{"data": "exception", "msg": "delete: server is running"}'
+                        )
+                    else:
+                        return queue.append(
+                            (
+                                "Deleting server: " + name,
+                                lambda: delete_server(name, self),
+                            )
+                        )
+
                 case _:
                     return self.sendMessage(
                         '{"data": "exception", "msg": "invalid command"}'
                     )
         except KeyError:
             return self.sendMessage('{"data": "exception", "msg": "missing data"')
+
+
+def on_queue_change():
+    for client in authed_clients:
+        client.sendMessage(d({"data": "queue", "queue": queue.dump()}))
 
 
 authed_clients = []
@@ -164,8 +267,8 @@ else:
     global_logger = Logger("/var/log/andromeda/stall.log")
 global_logger.log("Welcome to Andromeda-Stall!")
 
-queue = QueueManager()
-servers = ServerManager(authed_clients)
+queue = QueueManager(on_queue_change)
+servers = ServerManager()
 logging_websockets = servers.logging_websockets
 vanilla_versions = software_lib.VanillaData()
 paper_versions = software_lib.PaperData()

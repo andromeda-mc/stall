@@ -23,24 +23,28 @@ class ServerManager(dict):
 
     def __init__(
         self,
-        authed_websockets: list,
         instance_folder: str = "/var/andromeda/instances/",
     ) -> None:
         self.instance_folder = instance_folder
         self.logging_websockets = {}
         self._server_states = {}
-        self.authed_websockets = authed_websockets
 
     def create_server(
-        self, name: str, software: str, download_url: str, java_bin: str, settings: dict
+        self,
+        name: str,
+        software: str,
+        download_url: str,
+        java_bin: str,
+        settings: dict,
+        authed_websockets: list,
     ) -> None:
         install_dir = self.instance_folder + name + "/"
         os.makedirs(install_dir, exist_ok=True)
         response = software_lib.requests.get(download_url)
         if response.status_code != 200:
-            raise Exception("failed downloading forge installer")
+            raise Exception("failed downloading server")
 
-        if software == "forge":
+        if software == "Forge":
             with open("/tmp/andromeda-forge.jar", "wb") as f:
                 f.write(response.content)
 
@@ -50,14 +54,20 @@ class ServerManager(dict):
                     "-jar",
                     "/tmp/andromeda-forge.jar",
                     "-installServer",
-                    f"'{install_dir}'",
+                    install_dir,
                 )
             )
+
+            os.remove("andromeda-forge.jar.log")
+
+            if not os.path.exists(install_dir + "run.sh"):
+                os.rmdir(install_dir)
+                raise Exception("forge installer failed")
 
             with open(install_dir + "run.sh", "r+") as f:
                 content = f.read().replace("java", java_bin).replace("$@", "nogui")
                 f.write(content)
-        elif software in ("paper", "fabric", "vanilla"):
+        elif software in ("Paper", "Fabric", "Vanilla"):
             with open(install_dir + "server.jar", "wb") as f:
                 f.write(response.content)
 
@@ -79,7 +89,7 @@ class ServerManager(dict):
         with open(install_dir + "settings.andromeda.json", "w") as f:
             json.dump(instance_settings, f)
 
-        for client in self.authed_websockets:
+        for client in authed_websockets:
             client.sendMessage(
                 json.dumps(
                     {
@@ -93,6 +103,10 @@ class ServerManager(dict):
     def list_servers(self) -> dict:
         servers = {}
         for dirname in os.listdir(self.instance_folder):
+            if not os.path.exists(
+                self.instance_folder + dirname + "/settings.andromeda.json"
+            ):
+                continue
             servers[dirname] = self.get_settings(dirname)
         return servers
 
@@ -100,7 +114,9 @@ class ServerManager(dict):
         with open(self.instance_folder + name + "/settings.andromeda.json", "r") as f:
             return json.load(f)
 
-    def handle_output(self, server_name: str, output: str) -> None:
+    def handle_output(
+        self, server_name: str, output: str, authed_websockets: list
+    ) -> None:
         if output == "*** process stopped ***":
             del self[server_name]
 
@@ -111,7 +127,7 @@ class ServerManager(dict):
         elif "Time elapsed:" in output:
             self._server_states[server_name] = "running"
 
-        for client in self.authed_websockets:
+        for client in authed_websockets:
             client.sendMessage(
                 json.dumps(
                     {
@@ -134,13 +150,13 @@ class ServerManager(dict):
                     )
                 )
 
-    def start_server(self, name: str) -> None:
+    def start_server(self, name: str, authed_websockets: list) -> None:
         if name in self:
             return
         self._server_states[name] = "starting"
         self[name] = vconsole.ConsoleWatcher(
             [self.instance_folder + name + "/run.sh"],
-            lambda output: self.handle_output(name, output),
+            lambda output: self.handle_output(name, output, authed_websockets),
             self.instance_folder + name,
         )
         if name not in self.logging_websockets:
