@@ -143,11 +143,17 @@ class WebSocketHandler(WebSocket):
                     )
 
                 case "stopserver":
-                    if servers.server_states()[json_data["server_name"]] != "running":
+                    name = json_data["server_name"]
+                    if servers.server_states()[name] != "running":
                         return self.sendMessage(
                             '{"data": "exception", "msg": "server not running"}'
                         )
-                    servers[json_data["server_name"]].write("stop\n")
+                    queue.append(
+                        (
+                            "Stopping server: " + name,
+                            lambda: servers[name].write("stop\n"),
+                        )
+                    )
 
                 case "listservers":
                     return self.sendMessage(
