@@ -55,7 +55,6 @@ def install_server(mcversion, software, softwareversion, server_name, client):
                 "mc_version": mcversion,
                 "autostart": False,
             },
-            authed_clients,
         )
     except Exception as e:
         return client.sendMessage(d({"data": "exception", "msg": f"cs[passed]: {e}"}))
@@ -143,9 +142,7 @@ class WebSocketHandler(WebSocket):
                     queue.append(
                         (
                             f"Starting {json_data["server_name"]}...",
-                            lambda: servers.start_server(
-                                json_data["server_name"], authed_clients
-                            ),
+                            lambda: servers.start_server(json_data["server_name"]),
                         )
                     )
 
@@ -286,8 +283,6 @@ def on_queue_change():
         client.sendMessage(d({"data": "queue", "queue": queue.dump()}))
 
 
-authed_clients = []
-
 os.makedirs("/var/log/andromeda", exist_ok=True)
 if sys.argv[1] == "dbg":
     print("Using debugging log")
@@ -299,6 +294,7 @@ global_logger.log("Welcome to Andromeda-Stall!")
 queue = QueueManager(on_queue_change)
 servers = ServerManager()
 logging_websockets = servers.logging_websockets
+authed_clients = servers.authed_clients
 vanilla_versions = software_lib.VanillaData()
 paper_versions = software_lib.PaperData()
 fabric_versions = software_lib.FabricData()

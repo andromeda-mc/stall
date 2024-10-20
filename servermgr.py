@@ -28,6 +28,7 @@ class ServerManager(dict):
         self.instance_folder = instance_folder
         self.logging_websockets = {}
         self._server_states = {}
+        self.authed_clients = []
 
     def create_server(
         self,
@@ -36,7 +37,6 @@ class ServerManager(dict):
         download_url: str,
         java_bin: str,
         settings: dict,
-        authed_websockets: list,
     ) -> None:
         install_dir = self.instance_folder + name + "/"
         os.makedirs(install_dir, exist_ok=True)
@@ -89,7 +89,7 @@ class ServerManager(dict):
         with open(install_dir + "settings.andromeda.json", "w") as f:
             json.dump(instance_settings, f)
 
-        for client in authed_websockets:
+        for client in self.authed_clients:
             client.sendMessage(
                 json.dumps(
                     {
@@ -114,9 +114,7 @@ class ServerManager(dict):
         with open(self.instance_folder + name + "/settings.andromeda.json", "r") as f:
             return json.load(f)
 
-    def handle_output(
-        self, server_name: str, output: str, authed_websockets: list
-    ) -> None:
+    def handle_output(self, server_name: str, output: str) -> None:
         if output == "*** process stopped ***":
             del self[server_name]
 
@@ -127,7 +125,7 @@ class ServerManager(dict):
         elif "Time elapsed:" in output:
             self._server_states[server_name] = "running"
 
-        for client in authed_websockets:
+        for client in self.authed_clients:
             client.sendMessage(
                 json.dumps(
                     {
@@ -150,16 +148,16 @@ class ServerManager(dict):
                     )
                 )
 
-    def start_server(self, name: str, authed_websockets: list) -> None:
+    def start_server(self, name: str) -> None:
         if name in self:
             return
         self._server_states[name] = "starting"
         self[name] = vconsole.ConsoleWatcher(
             [self.instance_folder + name + "/run.sh"],
-            lambda output: self.handle_output(name, output, authed_websockets),
+            lambda output: self.handle_output(name, output),
             self.instance_folder + name,
         )
-        self.handle_output(name, "\033[2J\033[H", authed_websockets)
+        self.handle_output(name, "\033[2J\033[H")
         self[name].console_history += "\033[2J\033[H"
 
     def server_states(self) -> dict:
