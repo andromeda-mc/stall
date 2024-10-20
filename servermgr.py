@@ -83,7 +83,7 @@ class ServerManager(dict):
 
         with open(install_dir + "user_jvm_args.txt", "w") as f:
             f.write("-Xmx4G")
-        os.system("chmod +x " + install_dir + "/run.sh")
+        os.system('chmod +x "' + install_dir + '"/run.sh')
 
         instance_settings = {"software": software, "java": java_bin, **settings}
         with open(install_dir + "settings.andromeda.json", "w") as f:
@@ -159,8 +159,8 @@ class ServerManager(dict):
             lambda output: self.handle_output(name, output, authed_websockets),
             self.instance_folder + name,
         )
-        if name not in self.logging_websockets:
-            self.logging_websockets[name] = []
+        self.handle_output(name, "\033[2J\033[H", authed_websockets)
+        self[name].console_history += "\033[2J\033[H"
 
     def server_states(self) -> dict:
         for server in self.list_servers().keys():

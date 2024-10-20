@@ -3,6 +3,7 @@ import json
 import shutil
 import sys
 import os
+import traceback
 from SimpleWebSocketServer import WebSocket, SimpleWebSocketServer
 from queuemgr import QueueManager
 from servermgr import ServerManager
@@ -81,6 +82,8 @@ class WebSocketHandler(WebSocket):
     def handleClose(self):
         if self in authed_clients:
             authed_clients.remove(self)
+        for server in servers.logging_websockets.keys():
+            servers.logging_websockets[server].remove(self)
         global_logger.log(f"{self.address[0]} DISCONNECTED")
 
     def handleMessage(self):
@@ -111,20 +114,24 @@ class WebSocketHandler(WebSocket):
                         return self.sendMessage(
                             '{"data": "exception", "msg": "invalid server name"}'
                         )
+                    if json_data["server_name"] not in logging_websockets:
+                        logging_websockets[json_data["server_name"]] = []
                     logging_websockets[json_data["server_name"]].append(self)
+                    if json_data["server_name"] in servers:
+                        history = servers[json_data["server_name"]].console_history
+                    else:
+                        history = "*** server is not running ***"
                     return self.sendMessage(
                         d(
                             {
                                 "data": "log_history",
-                                "log": servers[
-                                    json_data["server_name"]
-                                ].console_history,
+                                "log": history,
                             }
                         )
                     )
 
                 case "stopconsolelogging":
-                    for server in logging_websockets.keys():
+                    for server in logging_websockets:
                         if self in logging_websockets[server]:
                             logging_websockets[server].remove(self)
 
@@ -250,12 +257,28 @@ class WebSocketHandler(WebSocket):
                             )
                         )
 
+                case "console_write":
+                    if json_data["server_name"] not in servers:
+                        return self.sendMessage(
+                            '{"data": "exception", "msg": "server not running"}'
+                        )
+                    servers[json_data["server_name"]].write(json_data["content"])
+
                 case _:
                     return self.sendMessage(
                         '{"data": "exception", "msg": "invalid command"}'
                     )
         except KeyError:
-            return self.sendMessage('{"data": "exception", "msg": "missing data"')
+            print("Exception occured:\n" + traceback.format_exc())
+            return self.sendMessage(
+                d(
+                    {
+                        "data": "exception",
+                        "msg": "missing data",
+                        "old_message": self.data,
+                    }
+                )
+            )
 
 
 def on_queue_change():
