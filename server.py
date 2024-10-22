@@ -141,7 +141,7 @@ class WebSocketHandler(WebSocket):
                         )
                     queue.append(
                         (
-                            f"Starting {json_data["server_name"]}...",
+                            f"Starting {json_data['server_name']}...",
                             lambda: servers.start_server(json_data["server_name"]),
                         )
                     )
@@ -283,12 +283,12 @@ def on_queue_change():
         client.sendMessage(d({"data": "queue", "queue": queue.dump()}))
 
 
-os.makedirs("/var/log/andromeda", exist_ok=True)
+os.makedirs("/var/andromeda/log", exist_ok=True)
 if sys.argv[1] == "dbg":
     print("Using debugging log")
     global_logger = Logger("stall.log")
 else:
-    global_logger = Logger("/var/log/andromeda/stall.log")
+    global_logger = Logger("/var/andromeda/stall.log")
 global_logger.log("Welcome to Andromeda-Stall!")
 
 queue = QueueManager(on_queue_change)
@@ -301,7 +301,7 @@ fabric_versions = software_lib.FabricData()
 forge_versions = software_lib.ForgeData()
 
 with open("/var/andromeda/authhash", "r") as f:
-    authhash = f.read()
+    authhash = f.read().replace("\n", "")
 
 socketserver = SimpleWebSocketServer("0.0.0.0", 29836, WebSocketHandler)
 try:

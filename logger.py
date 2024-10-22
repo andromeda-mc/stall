@@ -11,8 +11,8 @@ class Logger:
 
     def log(self, message: str) -> None:
         message = message.replace("\n", "").replace("\r", "")
-        print(f"[{time.strftime("%d/%b/%Y %H:%M:%S")}] {message} -")
+        print(f"[{time.strftime('%d/%b/%Y %H:%M:%S')}] {message} -")
         with open(self.file, "a") as f:
             f.write(
-                f"andromeda-stall[{self.pid}] [{time.strftime("%d/%b/%Y %H:%M:%S")}] {message} -\n"
+                f"andromeda-stall[{self.pid}] [{time.strftime('%d/%b/%Y %H:%M:%S')}] {message} -\n"
             )
