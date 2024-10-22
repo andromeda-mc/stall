@@ -104,7 +104,7 @@ class WebSocketHandler(WebSocket):
         try:
             match json_data["data"]:
                 case "auth":
-                    if json_data["hash"] == json_data["authhash"]:
+                    if json_data["hash"] == global_settings["authhash"]:
                         authed_clients.append(self)
                         return self.sendMessage('{"data": "welcome"}')
                     else:
