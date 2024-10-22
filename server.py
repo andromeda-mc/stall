@@ -4,7 +4,11 @@ import shutil
 import sys
 import os
 import traceback
-from SimpleWebSocketServer import WebSocket, SimpleWebSocketServer
+from SimpleWebSocketServer import (
+    WebSocket,
+    SimpleSSLWebSocketServer,
+    SimpleWebSocketServer,
+)
 from queuemgr import QueueManager
 from servermgr import ServerManager
 from logger import Logger
@@ -100,7 +104,7 @@ class WebSocketHandler(WebSocket):
         try:
             match json_data["data"]:
                 case "auth":
-                    if json_data["hash"] == authhash:
+                    if json_data["hash"] == json_data["authhash"]:
                         authed_clients.append(self)
                         return self.sendMessage('{"data": "welcome"}')
                     else:
@@ -284,7 +288,7 @@ def on_queue_change():
 
 
 os.makedirs("/var/andromeda/log", exist_ok=True)
-if sys.argv[1] == "dbg":
+if len(sys.argv) >= 2 and sys.argv[1] == "dbg":
     print("Using debugging log")
     global_logger = Logger("stall.log")
 else:
@@ -300,10 +304,20 @@ paper_versions = software_lib.PaperData()
 fabric_versions = software_lib.FabricData()
 forge_versions = software_lib.ForgeData()
 
-with open("/var/andromeda/authhash", "r") as f:
-    authhash = f.read().replace("\n", "")
+with open("/var/andromeda/global_settings.andromeda.json", "r") as f:
+    global_settings = json.load(f)
 
-socketserver = SimpleWebSocketServer("0.0.0.0", 29836, WebSocketHandler)
+if global_settings["ssl"]:
+    socketserver = SimpleSSLWebSocketServer(
+        "0.0.0.0",
+        29836,
+        WebSocketHandler,
+        global_settings["certfile"],
+        global_settings["keyfile"],
+    )
+else:
+    socketserver = SimpleWebSocketServer("0.0.0.0", 29836, WebSocketHandler)
+global_logger.log("Server is ready")
 try:
     socketserver.serveforever()
 except KeyboardInterrupt:
