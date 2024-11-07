@@ -1,6 +1,8 @@
 import os
 import json
+import shutil
 import subprocess
+import properties_edit
 import software_lib
 import vconsole
 
@@ -28,7 +30,10 @@ class ServerManager(dict):
         self.instance_folder = instance_folder
         self.logging_websockets = {}
         self._server_states = {}
+        self.server_properties: dict[str, properties_edit.Properties] = {}
         self.authed_clients = []
+
+        self._update_properties()
 
     def create_server(
         self,
@@ -100,6 +105,12 @@ class ServerManager(dict):
                 )
             )
 
+        self._update_property(name)
+
+    def delete_server(self, name):
+        shutil.rmtree(self.instance_folder + name)
+        del self.server_properties[name]
+
     def list_servers(self) -> dict:
         servers = {}
         for dirname in os.listdir(self.instance_folder):
@@ -122,7 +133,7 @@ class ServerManager(dict):
             self._server_states[server_name] = "stopped"
         elif "Stopping server" in output:
             self._server_states[server_name] = "stopping"
-        elif "Time elapsed:" in output:
+        elif "Timings Reset" in output:
             self._server_states[server_name] = "running"
 
         for client in self.authed_clients:
@@ -148,9 +159,16 @@ class ServerManager(dict):
                     )
                 )
 
+    def dump_properties(self, server_name) -> None:
+        with open(self.instance_folder + server_name + "/server.properties", "w") as f:
+            f.write(self.server_properties[server_name].dump_file())
+
     def start_server(self, name: str) -> None:
         if name in self:
             return
+
+        self.dump_properties(name)
+
         self._server_states[name] = "starting"
         self[name] = vconsole.ConsoleWatcher(
             [self.instance_folder + name + "/run.sh"],
@@ -165,3 +183,16 @@ class ServerManager(dict):
             if server not in self:
                 self._server_states[server] = "stopped"
         return self._server_states
+
+    def _update_property(self, name) -> None:
+        path = self.instance_folder + name + "/server.properties"
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                self.server_properties[name] = properties_edit.Properties(f.read())
+        else:
+            self.server_properties[name] = properties_edit.Properties()
+            self.server_properties[name].build_boilerplate()
+
+    def _update_properties(self) -> None:
+        for server in self.list_servers():
+            self._update_property(server)
