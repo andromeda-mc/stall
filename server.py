@@ -17,6 +17,9 @@ d = json.dumps
 
 
 def install_server(mcversion, software, softwareversion, server_name, client):
+    if server_name in servers.list_servers():
+        return client.sendMessage(d({"data": "exception", "msg": "cs: already exists"}))
+
     match software:
         case "Paper":
             pbd = software_lib.PaperBuildData(mcversion)
@@ -118,13 +121,18 @@ class WebSocketHandler(WebSocket):
                                 '{"data": "exception", "msg": "invalid server name"}'
                             )
                             continue
+
                         if json_data["server_name"] not in logging_websockets:
                             logging_websockets[json_data["server_name"]] = []
-                        logging_websockets[json_data["server_name"]].append(self)
+
+                        if self not in logging_websockets[json_data["server_name"]]:
+                            logging_websockets[json_data["server_name"]].append(self)
+
                         if json_data["server_name"] in servers:
                             history = servers[json_data["server_name"]].console_history
                         else:
                             history = "*** server is not running ***"
+
                         self.sendMessage(
                             d(
                                 {
@@ -162,7 +170,7 @@ class WebSocketHandler(WebSocket):
                         queue.append(
                             (
                                 "Stopping server: " + name,
-                                lambda: servers[name].write("stop\n"),
+                                lambda: servers.stop_server(name),
                             )
                         )
 
@@ -299,17 +307,17 @@ class WebSocketHandler(WebSocket):
                         ):
                             servers.dump_properties(json_data["server_name"])
 
-                        self.sendMessage(
-                            d(
-                                {
-                                    "data": "properties",
-                                    "server_name": json_data["server_name"],
-                                    "properties": servers.server_properties[
-                                        json_data["server_name"]
-                                    ].dump(),
-                                }
+                            self.sendMessage(
+                                d(
+                                    {
+                                        "data": "properties",
+                                        "server_name": json_data["server_name"],
+                                        "properties": servers.server_properties[
+                                            json_data["server_name"]
+                                        ].dump(),
+                                    }
+                                )
                             )
-                        )
 
                     case _:
                         self.sendMessage(

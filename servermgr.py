@@ -178,6 +178,9 @@ class ServerManager(dict):
         self.handle_output(name, "\033[2J\033[H")
         self[name].console_history += "\033[2J\033[H"
 
+    def stop_server(self, name: str) -> None:
+        self[name].write("stop\n")
+
     def server_states(self) -> dict:
         for server in self.list_servers().keys():
             if server not in self:
@@ -196,3 +199,9 @@ class ServerManager(dict):
     def _update_properties(self) -> None:
         for server in self.list_servers():
             self._update_property(server)
+
+    def check_states(self, state: str) -> bool:
+        for server in self._server_states:
+            if server != state:
+                return False
+        return True

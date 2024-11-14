@@ -114,6 +114,7 @@ def get_java_versions() -> dict:
         "/usr/lib/jvm/" + jv
         for jv in os.listdir("/usr/lib/jvm")
         if not os.path.islink("/usr/lib/jvm/" + jv)
+        and os.path.isdir("/usr/lib/jvm/" + jv)
     )
     versions = {}
     for java_instance in jvmdir:
