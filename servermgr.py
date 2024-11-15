@@ -179,7 +179,7 @@ class ServerManager(dict):
         self[name].console_history += "\033[2J\033[H"
 
     def stop_server(self, name: str) -> None:
-        self[name].write("stop\n")
+        self[name].ctrlc()
 
     def server_states(self) -> dict:
         for server in self.list_servers().keys():
@@ -195,6 +195,7 @@ class ServerManager(dict):
         else:
             self.server_properties[name] = properties_edit.Properties()
             self.server_properties[name].build_boilerplate()
+            self.dump_properties(name)
 
     def _update_properties(self) -> None:
         for server in self.list_servers():

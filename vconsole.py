@@ -33,3 +33,7 @@ class ConsoleWatcher:
     def write(self, text: str):
         if self.process.isalive():
             self.process.write(text)
+
+    def ctrlc(self):
+        if self.process.isalive():
+            self.process.sendintr()
