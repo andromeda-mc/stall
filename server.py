@@ -45,7 +45,6 @@ def install_server(mcversion, software, softwareversion, server_name, client):
                     "data": "exception",
                     "msg": "cs: java not found",
                     "java_ver": recommended_ver,
-                    "plugins": [],
                 }
             )
         )
