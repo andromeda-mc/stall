@@ -2,6 +2,8 @@ import os
 import json
 import shutil
 import subprocess
+
+import requests
 import properties_edit
 import software_lib
 import vconsole
@@ -123,7 +125,18 @@ class ServerManager(dict):
 
     def get_settings(self, name: str) -> dict:
         with open(self.instance_folder + name + "/settings.andromeda.json", "r") as f:
-            return json.load(f)
+            settings = json.load(f)
+        settings["mods"] = self.get_mods(name)
+        return settings
+
+    def get_mods(self, name: str) -> tuple[list[str], ...]:
+        mods_path = self.instance_folder + name + "/mods"
+        if not os.path.exists(mods_path):
+            return tuple()
+
+        return tuple(
+            f.removesuffix(".jar").split("_") for f in os.listdir(mods_path) if "_" in f
+        )
 
     def handle_output(self, server_name: str, output: str) -> None:
         if output == "*** process stopped ***":
@@ -133,7 +146,7 @@ class ServerManager(dict):
             self._server_states[server_name] = "stopped"
         elif "Stopping server" in output:
             self._server_states[server_name] = "stopping"
-        elif "Timings Reset" in output:
+        elif "Done" in output:
             self._server_states[server_name] = "running"
 
         for client in self.authed_clients:
@@ -206,3 +219,20 @@ class ServerManager(dict):
             if server != state:
                 return False
         return True
+
+    def install_mod(self, name: str, jar_url: str, id: str, ver_id: str, client):
+        os.makedirs(self.instance_folder + name + "/mods", exist_ok=True)
+
+        jar_content = requests.get(jar_url).content
+        with open(f"{self.instance_folder}{name}/mods/{id}_{ver_id}.jar", "wb") as f:
+            f.write(jar_content)
+
+        client.sendMessage(
+            json.dumps(
+                {
+                    "data": "settings",
+                    "server_name": name,
+                    "settings": self.get_settings(name),
+                }
+            )
+        )

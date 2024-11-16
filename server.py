@@ -45,6 +45,7 @@ def install_server(mcversion, software, softwareversion, server_name, client):
                     "data": "exception",
                     "msg": "cs: java not found",
                     "java_ver": recommended_ver,
+                    "plugins": [],
                 }
             )
         )
@@ -318,6 +319,34 @@ class WebSocketHandler(WebSocket):
                                     }
                                 )
                             )
+
+                    case "installmod":
+                        if json_data["server_name"] not in servers.list_servers():
+                            self.sendMessage(
+                                '{"data": "exception", "msg": "server not found"}'
+                            )
+                            continue
+                        software = servers.get_settings(json_data["server_name"])[
+                            "software"
+                        ]
+                        if software not in ("Fabric", "Forge", "Paper"):
+                            self.sendMessage(
+                                '{"data": "exception", "msg": "server does not support mods"}'
+                            )
+                            continue
+
+                        queue.append(
+                            (
+                                "Installing Mod: " + json_data["mod_id"],
+                                lambda: servers.install_mod(
+                                    json_data["server_name"],
+                                    json_data["mod_jar"],
+                                    json_data["mod_id"],
+                                    json_data["mod_ver_id"],
+                                    self,
+                                ),
+                            )
+                        )
 
                     case _:
                         self.sendMessage(
