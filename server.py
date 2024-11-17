@@ -348,6 +348,47 @@ class WebSocketHandler(WebSocket):
                             )
                         )
 
+                    case "installdatapack":
+                        if json_data["server_name"] not in servers.list_servers():
+                            self.sendMessage(
+                                '{"data": "exception", "msg": "server not found"}'
+                            )
+                            continue
+
+                        queue.append(
+                            (
+                                "Installing Datapack: " + json_data["mod_id"],
+                                lambda: servers.install_mod(
+                                    json_data["server_name"],
+                                    json_data["mod_jar"],
+                                    json_data["mod_id"],
+                                    json_data["mod_ver_id"],
+                                    "Datapack",
+                                    self,
+                                ),
+                            )
+                        )
+
+                    case "uninstallmod":
+                        if json_data["server_name"] not in servers.list_servers():
+                            self.sendMessage(
+                                '{"data": "exception", "msg": "server not found"}'
+                            )
+                            continue
+
+                        queue.append(
+                            (
+                                f"Uninstalling {'Datapack' if json_data['datapackMode'] else "Mod"}: "
+                                + json_data["mod_id"],
+                                lambda: servers.uninstall_mod(
+                                    json_data["server_name"],
+                                    json_data["mod_id"],
+                                    json_data["datapackMode"],
+                                    self,
+                                ),
+                            )
+                        )
+
                     case _:
                         self.sendMessage(
                             '{"data": "exception", "msg": "invalid command"}'

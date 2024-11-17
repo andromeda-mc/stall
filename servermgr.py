@@ -96,6 +96,9 @@ class ServerManager(dict):
         with open(install_dir + "settings.andromeda.json", "w") as f:
             json.dump(instance_settings, f)
 
+        os.makedirs(install_dir + "world/datapacks")
+        os.symlink("world/datapacks", install_dir + "datapacks")
+
         for client in self.authed_clients:
             client.sendMessage(
                 json.dumps(
@@ -123,10 +126,14 @@ class ServerManager(dict):
             servers[dirname] = self.get_settings(dirname)
         return servers
 
-    def get_settings(self, name: str) -> dict:
+    def get_bare_settings(self, name: str) -> dict:
         with open(self.instance_folder + name + "/settings.andromeda.json", "r") as f:
-            settings = json.load(f)
+            return json.load(f)
+
+    def get_settings(self, name: str) -> dict:
+        settings = self.get_bare_settings(name)
         settings["mods"] = self.get_mods(name, settings)
+        settings["datapacks"] = self.get_datapacks(name)
         return settings
 
     def get_mods(self, name: str, settings: dict) -> tuple[list[str], ...]:
@@ -140,6 +147,20 @@ class ServerManager(dict):
 
         return tuple(
             f.removesuffix(".jar").split("_")
+            for f in os.listdir(mods_path)
+            if "_" in f and os.path.isfile(mods_path + f)
+        )
+
+    def get_datapacks(self, name: str) -> tuple[list[str], ...]:
+        mods_path = self.instance_folder + name + "/datapacks/"
+        if not os.path.exists(mods_path):
+            install_dir = f"{self.instance_folder}{name}/"
+            os.makedirs(install_dir + "world/datapacks", exist_ok=True)
+            os.symlink("world/datapacks", install_dir + "datapacks")
+            return tuple()
+
+        return tuple(
+            f.removesuffix(".zip").split("_")
             for f in os.listdir(mods_path)
             if "_" in f and os.path.isfile(mods_path + f)
         )
@@ -231,13 +252,43 @@ class ServerManager(dict):
     ):
         if software == "Paper":
             folder = "/plugins/"
+            extension = ".jar"
+        elif software == "Datapack":
+            folder = "/datapacks/"
+            extension = ".zip"
         else:
             folder = "/mods/"
+            extension = ".jar"
         os.makedirs(self.instance_folder + name + folder, exist_ok=True)
 
         jar_content = requests.get(jar_url).content
-        with open(f"{self.instance_folder}{name}{folder}{id}_{ver_id}.jar", "wb") as f:
+        with open(
+            f"{self.instance_folder}{name}{folder}{id}_{ver_id}{extension}", "wb"
+        ) as f:
             f.write(jar_content)
+
+        client.sendMessage(
+            json.dumps(
+                {
+                    "data": "settings",
+                    "server_name": name,
+                    "settings": self.get_settings(name),
+                }
+            )
+        )
+
+    def uninstall_mod(self, name: str, id: str, datapackMode: bool, client):
+        instance_dir = self.instance_folder + name
+        settings = self.get_bare_settings(name)
+        if datapackMode:
+            version_id = dict(self.get_datapacks(name))[id]
+            os.remove(f"{instance_dir}/datapacks/{id}_{version_id}.zip")
+        else:
+            version_id = dict(self.get_mods(name, settings))[id]
+            if settings["software"] == "Paper":
+                os.remove(f"{instance_dir}/plugins/{id}_{version_id}.jar")
+            else:
+                os.remove(f"{instance_dir}/mods/{id}_{version_id}.jar")
 
         client.sendMessage(
             json.dumps(
