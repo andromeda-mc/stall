@@ -342,6 +342,7 @@ class WebSocketHandler(WebSocket):
                                     json_data["mod_jar"],
                                     json_data["mod_id"],
                                     json_data["mod_ver_id"],
+                                    software,
                                     self,
                                 ),
                             )
