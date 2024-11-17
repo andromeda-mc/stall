@@ -131,9 +131,9 @@ class ServerManager(dict):
 
     def get_mods(self, name: str, settings: dict) -> tuple[list[str], ...]:
         if settings["software"] == "Paper":
-            folder = "/plugins"
+            folder = "/plugins/"
         else:
-            folder = "/mods"
+            folder = "/mods/"
         mods_path = self.instance_folder + name + folder
         if not os.path.exists(mods_path):
             return tuple()
@@ -141,7 +141,7 @@ class ServerManager(dict):
         return tuple(
             f.removesuffix(".jar").split("_")
             for f in os.listdir(mods_path)
-            if "_" in f and os.path.isfile(f)
+            if "_" in f and os.path.isfile(mods_path + f)
         )
 
     def handle_output(self, server_name: str, output: str) -> None:
