@@ -96,9 +96,6 @@ class ServerManager(dict):
         with open(install_dir + "settings.andromeda.json", "w") as f:
             json.dump(instance_settings, f)
 
-        os.makedirs(install_dir + "world/datapacks")
-        os.symlink("world/datapacks", install_dir + "datapacks")
-
         for client in self.authed_clients:
             client.sendMessage(
                 json.dumps(
@@ -152,11 +149,8 @@ class ServerManager(dict):
         )
 
     def get_datapacks(self, name: str) -> tuple[list[str], ...]:
-        mods_path = self.instance_folder + name + "/datapacks/"
+        mods_path = self.instance_folder + name + "/world/datapacks/"
         if not os.path.exists(mods_path):
-            install_dir = f"{self.instance_folder}{name}/"
-            os.makedirs(install_dir + "world/datapacks", exist_ok=True)
-            os.symlink("world/datapacks", install_dir + "datapacks")
             return tuple()
 
         return tuple(
@@ -173,7 +167,7 @@ class ServerManager(dict):
             self._server_states[server_name] = "stopped"
         elif "Stopping server" in output:
             self._server_states[server_name] = "stopping"
-        elif "Done" in output:
+        elif 'For help, type "help"' in output:
             self._server_states[server_name] = "running"
 
         for client in self.authed_clients:
@@ -254,7 +248,7 @@ class ServerManager(dict):
             folder = "/plugins/"
             extension = ".jar"
         elif software == "Datapack":
-            folder = "/datapacks/"
+            folder = "/world/datapacks/"
             extension = ".zip"
         else:
             folder = "/mods/"
@@ -282,7 +276,7 @@ class ServerManager(dict):
         settings = self.get_bare_settings(name)
         if datapackMode:
             version_id = dict(self.get_datapacks(name))[id]
-            os.remove(f"{instance_dir}/datapacks/{id}_{version_id}.zip")
+            os.remove(f"{instance_dir}/world/datapacks/{id}_{version_id}.zip")
         else:
             version_id = dict(self.get_mods(name, settings))[id]
             if settings["software"] == "Paper":

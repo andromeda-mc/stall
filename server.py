@@ -378,7 +378,7 @@ class WebSocketHandler(WebSocket):
 
                         queue.append(
                             (
-                                f"Uninstalling {'Datapack' if json_data['datapackMode'] else "Mod"}: "
+                                f"Uninstalling {'Datapack' if json_data['datapackMode'] else 'Mod'}: "
                                 + json_data["mod_id"],
                                 lambda: servers.uninstall_mod(
                                     json_data["server_name"],
