@@ -207,6 +207,6 @@ class Properties:
         ]
 
     def dump_file(self) -> str:
-        return "</p><p>".join(
+        return "\n".join(
             [f"{option}={self.options[option]}" for option in self.options]
         )
