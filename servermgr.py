@@ -73,7 +73,9 @@ class ServerManager(dict):
 
             with open(install_dir + "run.sh", "r+") as f:
                 content = f.read().replace("java", java_bin).replace("$@", "nogui")
+                f.seek(0)
                 f.write(content)
+                f.truncate()
         elif software in ("Paper", "Fabric", "Vanilla"):
             with open(install_dir + "server.jar", "wb") as f:
                 f.write(response.content)

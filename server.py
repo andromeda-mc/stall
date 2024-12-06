@@ -11,6 +11,7 @@ from SimpleWebSocketServer import (
 from queuemgr import QueueManager
 from servermgr import ServerManager
 from logger import Logger
+import stat_watch
 import software_lib
 
 d = json.dumps
@@ -83,6 +84,8 @@ def delete_server(name, client):
 class WebSocketHandler(WebSocket):
     def handleConnected(self):
         global_logger.log(f"{self.address[0]} CONNECTED")
+        payload = stat_watch.create_payload()
+        stat_watch.send_payload(self, payload)
 
     def handleClose(self):
         if self in authed_clients:
@@ -455,6 +458,9 @@ if global_settings["ssl"]:
 else:
     socketserver = SimpleWebSocketServer("0.0.0.0", 29836, WebSocketHandler)
 global_logger.log("Server is ready")
+
+stat_watcher = stat_watch.StatWatcher(socketserver.connections)
+
 try:
     socketserver.serveforever()
 except KeyboardInterrupt:
