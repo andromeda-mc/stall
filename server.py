@@ -13,6 +13,7 @@ from servermgr import ServerManager
 from logger import Logger
 import stat_watch
 import software_lib
+from updater import update_server
 
 d = json.dumps
 
@@ -61,6 +62,7 @@ def install_server(mcversion, software, softwareversion, server_name, client):
                 "software_version": softwareversion,
                 "mc_version": mcversion,
                 "autostart": False,
+                "autorestart": False,
             },
         )
     except Exception as e:
@@ -392,6 +394,31 @@ class WebSocketHandler(WebSocket):
                             )
                         )
 
+                    case "setsetting":
+                        if json_data["server_name"] not in servers.list_servers():
+                            self.sendMessage(
+                                '{"data": "exception", "msg": "server not found"}'
+                            )
+                            continue
+
+                        servers.set_setting(
+                            json_data["server_name"],
+                            json_data["setting"],
+                            json_data["value"],
+                        )
+
+                        self.sendMessage(
+                            d(
+                                {
+                                    "data": "settings",
+                                    "server_name": json_data["server_name"],
+                                    "settings": servers.get_settings(
+                                        json_data["server_name"]
+                                    ),
+                                }
+                            )
+                        )
+
                     case _:
                         self.sendMessage(
                             '{"data": "exception", "msg": "invalid command"}'
@@ -435,15 +462,23 @@ else:
     global_logger = Logger("/var/andromeda/stall.log")
 global_logger.log("Welcome to Andromeda-Stall!")
 
+global_logger.log("Setting up services")
 queue = QueueManager(on_queue_change)
 servers = ServerManager()
 logging_websockets = servers.logging_websockets
 authed_clients = servers.authed_clients
+
+global_logger.log("Fetching metadata...")
 vanilla_versions = software_lib.VanillaData()
 paper_versions = software_lib.PaperData()
 fabric_versions = software_lib.FabricData()
 forge_versions = software_lib.ForgeData()
 
+global_logger.log("Updating legacy servers")
+for server_name in servers.list_servers():
+    update_server(server_name, servers, global_logger)
+
+global_logger.log("Setting up websocket server")
 with open("/var/andromeda/global_settings.andromeda.json", "r") as f:
     global_settings = json.load(f)
 
@@ -460,6 +495,19 @@ else:
 global_logger.log("Server is ready")
 
 stat_watcher = stat_watch.StatWatcher(socketserver.connections)
+
+global_logger.log("Starting autostart servers")
+
+for server in servers.list_servers():
+    settings = servers.get_bare_settings(server)
+    if settings["autostart"]:
+        queue.append(
+            (
+                f"Starting server: {server} (Reason: autostart)",
+                lambda: servers.start_server(server),
+            )
+        )
+        global_logger.log("Starting " + server)
 
 try:
     socketserver.serveforever()

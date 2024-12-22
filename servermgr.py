@@ -17,6 +17,7 @@ import vconsole
 #   software_version : Version or build of the server software. Empty if vanilla
 #   mc_version : Minecraft version
 #   autostart : Automatically start this mc server when andromeda_stall starts
+#   autorestart : Automatically restart this mc server when the server stops
 # }
 
 
@@ -162,8 +163,14 @@ class ServerManager(dict):
         )
 
     def handle_output(self, server_name: str, output: str) -> None:
+        log = True
         if output == "*** process stopped ***":
             del self[server_name]
+
+            # autorestart
+            if self.get_bare_settings(server_name)["autorestart"]:
+                log = False
+                self.start_server(server_name)
 
         if server_name not in self:
             self._server_states[server_name] = "stopped"
@@ -183,7 +190,7 @@ class ServerManager(dict):
                 )
             )
 
-        if server_name in self.logging_websockets:
+        if server_name in self.logging_websockets and log:
             for client in self.logging_websockets[server_name]:
                 client.sendMessage(
                     json.dumps(
@@ -295,3 +302,12 @@ class ServerManager(dict):
                 }
             )
         )
+
+    def set_setting(self, name: str, setting: str, value):
+        setting_path = self.instance_folder + name + "/settings.andromeda.json"
+        with open(setting_path, "r+") as f:
+            json_data = json.load(f)
+            json_data[setting] = value
+            f.seek(0)
+            json.dump(json_data, f)
+            f.truncate()
