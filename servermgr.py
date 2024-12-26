@@ -164,6 +164,8 @@ class ServerManager(dict):
 
     def handle_output(self, server_name: str, output: str) -> None:
         log = True
+        old_state = self.server_states()[server_name]
+
         if output == "*** process stopped ***":
             del self[server_name]
 
@@ -174,21 +176,24 @@ class ServerManager(dict):
 
         if server_name not in self:
             self._server_states[server_name] = "stopped"
+        elif old_state == "stopped" and server_name in self:
+            self._server_states[server_name] = "starting"
         elif "Stopping server" in output:
             self._server_states[server_name] = "stopping"
         elif 'For help, type "help"' in output:
             self._server_states[server_name] = "running"
 
-        for client in self.authed_clients:
-            client.sendMessage(
-                json.dumps(
-                    {
-                        "data": "serverstate",
-                        "server": server_name,
-                        "state": self.server_states()[server_name],
-                    }
+        if old_state != self.server_states()[server_name]:
+            for client in self.authed_clients:
+                client.sendMessage(
+                    json.dumps(
+                        {
+                            "data": "serverstate",
+                            "server": server_name,
+                            "state": self.server_states()[server_name],
+                        }
+                    )
                 )
-            )
 
         if server_name in self.logging_websockets and log:
             for client in self.logging_websockets[server_name]:
@@ -212,7 +217,6 @@ class ServerManager(dict):
 
         self.dump_properties(name)
 
-        self._server_states[name] = "starting"
         self[name] = vconsole.ConsoleWatcher(
             [self.instance_folder + name + "/run.sh"],
             lambda output: self.handle_output(name, output),
