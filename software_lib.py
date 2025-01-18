@@ -10,7 +10,7 @@ def _compare_versions(version):
 
 class PaperData:
     def __init__(self) -> None:
-        self.string = requests.get("https://papermc.io/api/v2/projects/paper").json()
+        self.string = requests.get("https://api.papermc.io/v2/projects/paper").json()
 
     def mc_versions(self) -> list:
         return list(reversed(self.string["versions"]))
@@ -20,7 +20,7 @@ class PaperBuildData:
     def __init__(self, mc_version: str) -> None:
         self.mc_version = mc_version
         self.string = requests.get(
-            "https://papermc.io/api/v2/projects/paper/versions/" + mc_version
+            "https://api.papermc.io/v2/projects/paper/versions/" + mc_version
         ).json()
 
     def builds(self) -> list:
